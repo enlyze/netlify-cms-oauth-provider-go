@@ -80,16 +80,23 @@ func handleCallbackProvider(res http.ResponseWriter, req *http.Request) {
 	provider, errProvider := gothic.GetProviderName(req)
 	user, errAuth := gothic.CompleteUserAuth(res, req)
 	status = "error"
-	if errProvider != nil {
-		fmt.Printf("provider failed with '%s'\n", errProvider)
-		result = fmt.Sprintf("%#v", errProvider)
-	} else if errAuth != nil {
-		fmt.Printf("auth failed with '%s'\n", errAuth)
-		result = fmt.Sprintf("%#v", errAuth)
-	} else {
-		fmt.Printf("Logged in as %s user: %s (%s)\n", user.Provider, user.Email, user.AccessToken)
+	// hack because we always get errors + access token...
+	if len(user.AccessToken) > 0 && len(user.Provider) > 0 {
+		log.Printf("Logged in as %s user: %s (%s)\n", user.Provider, user.Email, user.AccessToken)
 		status = "success"
 		result = fmt.Sprintf(`{"token":"%s", "provider":"%s"}`, user.AccessToken, user.Provider)
+	} else {
+		if errProvider != nil {
+			log.Printf("provider failed with '%s'\n", errProvider)
+			result = fmt.Sprintf(`{"message":"%v"}`, errProvider)
+		} else if errAuth != nil {
+			log.Printf("auth failed with '%s'\n", errAuth)
+			result = fmt.Sprintf(`{"message":"%v"}`, errAuth)
+		} else {
+			log.Printf("Logged in as %s user: %s (%s)\n", user.Provider, user.Email, user.AccessToken)
+			status = "success"
+			result = fmt.Sprintf(`{"token":"%s", "provider":"%s"}`, user.AccessToken, user.Provider)
+		}
 	}
 	res.Header().Set("Content-Type", "text/html; charset=utf-8")
 	res.WriteHeader(http.StatusOK)
@@ -98,13 +105,13 @@ func handleCallbackProvider(res http.ResponseWriter, req *http.Request) {
 
 // GET /refresh
 func handleRefresh(res http.ResponseWriter, req *http.Request) {
-	fmt.Printf("refresh with '%v'\n", req)
+	log.Printf("refresh with '%v'\n", req)
 	res.Write([]byte(""))
 }
 
 // GET /success
 func handleSuccess(res http.ResponseWriter, req *http.Request) {
-	fmt.Printf("success with '%v'\n", req)
+	log.Printf("success with '%v'\n", req)
 	res.Write([]byte(""))
 }
 
@@ -170,7 +177,7 @@ func main() {
 		}
 		wg.Wait()
 	} else {
-		fmt.Printf("Start listening on %s\n", host)
+		log.Printf("Start listening on %s\n", host)
 		fmt.Println(http.ListenAndServe(host, nil))
 	}
 }
