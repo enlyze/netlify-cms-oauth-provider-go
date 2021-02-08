@@ -3,9 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"net"
 	"net/http"
 	"os"
+	"sync"
 
+	"github.com/coreos/go-systemd/v22/activation"
 	"github.com/gorilla/pat"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
@@ -94,13 +98,13 @@ func handleCallbackProvider(res http.ResponseWriter, req *http.Request) {
 
 // GET /refresh
 func handleRefresh(res http.ResponseWriter, req *http.Request) {
-	fmt.Printf("refresh with '%s'\n", req)
+	fmt.Printf("refresh with '%v'\n", req)
 	res.Write([]byte(""))
 }
 
 // GET /success
 func handleSuccess(res http.ResponseWriter, req *http.Request) {
-	fmt.Printf("success with '%s'\n", req)
+	fmt.Printf("success with '%v'\n", req)
 	res.Write([]byte(""))
 }
 
@@ -152,6 +156,21 @@ func main() {
 	//
 	http.Handle("/", router)
 	//
-	fmt.Printf("Started running on %s\n", host)
-	fmt.Println(http.ListenAndServe(host, nil))
+	listeners, err := activation.Listeners()
+
+	if err == nil && len(listeners) >= 1 {
+		wg := new(sync.WaitGroup)
+		wg.Add(len(listeners))
+		for _, l := range listeners {
+			go func(listener net.Listener) {
+				log.Println("Start listening on systemd activated socket")
+				log.Fatal(http.Serve(listener, nil))
+				wg.Done()
+			}(l)
+		}
+		wg.Wait()
+	} else {
+		fmt.Printf("Start listening on %s\n", host)
+		fmt.Println(http.ListenAndServe(host, nil))
+	}
 }
